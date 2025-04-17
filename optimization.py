@@ -9,6 +9,10 @@ import os
 # Current directory
 current_dir = os.getcwd()
 
+# Load dataset first for both models to use
+data_path = os.path.join(current_dir, 'data_example.csv')
+data = pd.read_csv(data_path)
+
 ener_model = MyGRU(quant=['Energy_consumption'], seq=12, fut=0, parameters=['Outside_humidity',
               'Solar_irradiance',
               'CO2_concentration',
@@ -43,28 +47,37 @@ temp_model = MyGRU(quant=['Inside_temperature'], seq=12, fut=0, parameters=['Out
 
 # DEFINE PATHS FOR LOADING ENERGY AND TEMPERATURE MODELS
 # Use the latest trained models from the current directory
-ener_path = os.path.join(current_dir, 'GRU_Energy_consumption_2025-04-17')
-temp_path = os.path.join(current_dir, 'GRU_Inside_temperature_2025-04-17')
+today = date.today()
+ener_path = os.path.join(current_dir, f'GRU_Energy_consumption_{today}')
+temp_path = os.path.join(current_dir, f'GRU_Inside_temperature_{today}')
 
-# Check if the model directories exist, if not, train new models
-if not os.path.exists(ener_path):
-    print(f"Energy model path {ener_path} not found. Please train the model first.")
-    # You could add code here to train the model if needed
-else:
-    ener_model.load(ener_path)
+# Function to train a model if it doesn't exist
+def ensure_model_exists(model, model_path, model_type):
+    if not os.path.exists(model_path) or not os.path.exists(os.path.join(model_path, 'model.h5')):
+        print(f"{model_type} model not found. Training new model...")
+        # Process data
+        X_train, y_train, X_val, y_val = model.preprocess(raw_data=data)
+        # Train with a small number of epochs and trials for quick results
+        model.fit(X=X_train, y=y_train, epochs=20, max_trials=1)
+        model.save()
+        return True
+    else:
+        print(f"Loading existing {model_type} model...")
+        model.load(model_path)
+        return False
 
-if not os.path.exists(temp_path):
-    print(f"Temperature model path {temp_path} not found. Please train the model first.")
-    # You could add code here to train the model if needed
-else:
-    temp_model.load(temp_path)
+# Ensure both models exist
+ener_trained = ensure_model_exists(ener_model, ener_path, "Energy")
+temp_trained = ensure_model_exists(temp_model, temp_path, "Temperature")
+
+# If either model was newly trained, we need to update the paths
+if ener_trained:
+    ener_path = os.path.join(current_dir, f'GRU_Energy_consumption_{today}')
+if temp_trained:
+    temp_path = os.path.join(current_dir, f'GRU_Inside_temperature_{today}')
 
 # SET CORRECT SEQUENCE LENGTH BASED ON AFOREMENTIONED MODELS
 SEQ_LEN = ener_model.seq
-
-# LOAD THE DATA USED IN OPTIMIZATION
-data_path = os.path.join(current_dir, 'data_example.csv')
-data = pd.read_csv(data_path)
 
 # HOW MANY ROUNDS TO OPTIMIZE?
 opt_rounds = 2

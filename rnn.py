@@ -390,9 +390,39 @@ class CVTuner(kt.engine.tuner.Tuner):
             model: The model to be saved.
             step: The step (epoch) at which the model is saved. Used in filenames.
         """
-        fname = os.path.join(self.get_trial_dir(trial_id), f'model_{step}.h5')
-        model.save(fname, include_optimizer=True)
-        return fname
+        # Save the model in two formats:
+        # 1. Complete model (what we're actually using)
+        model_path = os.path.join(self.get_trial_dir(trial_id), f'model_{step}.h5')
+        model.save(model_path, include_optimizer=True)
+        
+        # 2. Weights file (what keras-tuner expects)
+        weights_path = os.path.join(self.get_trial_dir(trial_id), "checkpoint.weights.h5")
+        model.save_weights(weights_path)
+        
+        return model_path
+    
+    def load_model(self, trial):
+        """Load a model based on the trial.
+        
+        Args:
+            trial: A Trial object containing trial information.
+            
+        Returns:
+            A Keras model loaded from the checkpoint file.
+        """
+        # First try to load the complete saved model (our preferred method)
+        model_path = os.path.join(self.get_trial_dir(trial.trial_id), 'model_0.h5')
+        if os.path.exists(model_path):
+            return load_model(model_path)
+        
+        # Fall back to keras-tuner's default loading approach
+        weights_path = os.path.join(self.get_trial_dir(trial.trial_id), "checkpoint.weights.h5")
+        if not os.path.exists(weights_path):
+            raise ValueError(f"Models for trial {trial.trial_id} have not been saved.")
+            
+        model = self.hypermodel.build(trial.hyperparameters)
+        model.load_weights(weights_path)
+        return model
         
 class RNN_HyperModel(kt.HyperModel):
     '''
@@ -471,8 +501,16 @@ class RNN_HyperModel(kt.HyperModel):
         # Define model optimizer, here Adam is used with learning rate decided with Bayesian Optimization
         opt = Adam(learning_rate=hp_lr)
         
-        # Compile the model. Mean Squared Error is used as loss function while Mean Absolute Error is calculated for illustration
-        model.compile(loss='mse', optimizer=opt, metrics=['mae'])
+        # Import proper loss functions to fix serialization issue
+        from tensorflow.keras.losses import MeanSquaredError
+        from tensorflow.keras.metrics import MeanAbsoluteError
+        
+        # Compile the model using actual loss function objects instead of strings
+        model.compile(
+            loss=MeanSquaredError(), 
+            optimizer=opt, 
+            metrics=[MeanAbsoluteError()]
+        )
         
         return model
         

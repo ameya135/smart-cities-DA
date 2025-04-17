@@ -30,7 +30,7 @@ x_train, y_train, x_test, y_test = hvac_model.preprocess(raw_data)
 
 # Train the model using custom fit method. 
 # Does hyperparameter optimization automatically in pre-defined search space. Comment row below, if you have already trained the model.
-hvac_model.fit(X=x_train, y=y_train, epochs=20, max_trials=1)
+hvac_model.fit(X=x_train, y=y_train, epochs=10, max_trials=1)
 hvac_model.save()
 
 # Example of loading a previously trained model (uncomment to use)
