@@ -1,0 +1,9 @@
+matplotlib
+numpy
+tensorflow
+scipy
+pandas
+keras_tuner
+joblib
+preprocess
+scikit_learn
